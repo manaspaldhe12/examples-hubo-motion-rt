@@ -287,11 +287,11 @@ int main(int argc, char* argv[]) {
 	int line_counter=0;
 
 	if (argc>1){
-		filename=argv[0];
+	//	filename=argv[0];
 		printf("file is  %s \n",argv[1]);
 	}
 	if (argc>2){
-		input_file_frequency=atoi(argv[1]);
+	//	input_file_frequency=atoi(argv[1]);
 		printf(" input freq is  %d  \n",atoi(argv[2])); 
 	}
 
