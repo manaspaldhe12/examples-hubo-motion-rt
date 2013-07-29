@@ -3,6 +3,14 @@
 #include <iostream>
 #include <fstream>
 #include <ncurses.h>
+
+#include <termio.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdlib.h>
+
+
 // Note that "std::vector" is a dynamic array class in C++ (not available in C)
 // This means you can use std::vector to make a variable-sized array of ArmVector
 // Even though std::vector and ArmVector have similar names, they are not directly related to each other
@@ -11,11 +19,18 @@ using namespace std;
 double* getArf(char* s);
 void printDoubleArray (double array[]);
 void gotoFirstPosition(double referenceData[], Hubo_Control &hubo);
-void gotoNewPosition(double referenceData[], double bufferedData[], int resample_ratio, Hubo_Control &hubo, FILE * resultFile);
+void gotoNewPosition(double referenceData[], double bufferedData[], int resample_ratio, Hubo_Control &hubo, FILE * resultFile, int line_counter);
 double* interpolate_linear (double referenceData[], double bufferedData[], double multiplier);
-bool checkTrajectory (double nextPosition[], double currentPosition[]);
+bool checkTrajectory (double nextPosition[], double currentPosition[], int line_counter);
 int* contactArray (Hubo_Control &hubo);
 void printFTSensorValues(Hubo_Control &hubo);
+static int tty_unbuffered(int);
+static void tty_atexit(void);
+static int tty_reset(int);
+static void tweak_init();
+
+static struct termios save_termios;
+static int  ttysavefd = -1;
 
 
 double* getArg(char* s) {
@@ -164,7 +179,7 @@ void gotoFirstPosition(double referenceData[], Hubo_Control &hubo){
     }
 }
 
-void gotoNewPosition(double referenceData[], double bufferedData[], int resample_ratio, Hubo_Control &hubo, FILE * resultFile){
+void gotoNewPosition(double referenceData[], double bufferedData[], int resample_ratio, Hubo_Control &hubo, FILE * resultFile, int line_counter){
     ArmVector  left_arm_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
     ArmVector  right_arm_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
     ArmVector  left_leg_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
@@ -214,7 +229,7 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
        	joint_array[38]=LF4;  
        	joint_array[39]=LF5;    
     
-     checkTrajectory(referenceData, bufferedData);
+     checkTrajectory(referenceData, bufferedData, line_counter);
      for (int iterator=1; iterator<=resample_ratio; iterator++){
 
 	    double multiplier = (double)iterator/(double)resample_ratio;
@@ -229,10 +244,9 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
 	    hubo.update(true);
 
     	for (int joint=0; joint<number_of_joints; joint++){
-		if (joint_array[joint]!=WST){
-	 		hubo.passJointAngle(joint_array[joint], interpolatedData[joint]);
-			fprintf(resultFile,"%f ",interpolatedData[joint]);
-		}
+		hubo.setJointCompliance(joint_array[joint], true);
+ 		hubo.passJointAngle(joint_array[joint], interpolatedData[joint]);
+		fprintf(resultFile,"%f ",interpolatedData[joint]);
 	}
 	fprintf(resultFile," \n"); 
 	fflush(resultFile);
@@ -252,13 +266,13 @@ double* interpolate_linear (double referenceData[], double bufferedData[], doubl
 	return interpolatedData;
 }
 
-bool checkTrajectory (double nextPosition[], double currentPosition[]){
+bool checkTrajectory (double nextPosition[], double currentPosition[], int line_counter){
         bool is_correct=true;
         double threshold =0.03;
         for (int joint=0; joint<number_of_joints; joint++){
                 if (abs(nextPosition[joint]-currentPosition[joint])>threshold){
                         is_correct=false;
-                        printf("\n too much jump in the joint %d -- from %f to %f ", joint, currentPosition[joint], nextPosition[joint]);
+                        printf("\n too much jump in the joint %d -- from %f to %f  in line %d", joint, currentPosition[joint], nextPosition[joint], line_counter);
                 }
         }
         return is_correct;
@@ -292,7 +306,20 @@ int main(int argc, char* argv[]) {
 	}
 	if (argc>2){
 	//	input_file_frequency=atoi(argv[1]);
+		filename=argv[1];
+		printf("file is  %s \n",argv[1]);
+	}
+	if (argc>2){
+		input_file_frequency=atoi(argv[2]);
 		printf(" input freq is  %d  \n",atoi(argv[2])); 
+	}
+	if (input_file_frequency <10){
+		printf("too low input frequncy");
+		return 0;
+	}
+	if (input_file_frequency >100){
+		printf("too high input frequency");
+		return 0;
 	}
 
 /*
@@ -316,15 +343,24 @@ int main(int argc, char* argv[]) {
 	double* bufferedData  = new double[number_of_joints];
 	FILE * resultFile;
 	resultFile =fopen("./src/result.traj","w");
-	char character_input;
+	char c;
 	bool paused=false;
-	initscr();
-	nodelay(stdscr, TRUE);
-        while(fgets(str,sizeof(str),fp) != NULL) {
-		character_input=getch();
-		if (character_input=' '){
-			paused = !paused;
-			usleep(500000);
+        tweak_init();
+
+	while(fgets(str,sizeof(str),fp) != NULL) {
+		if ( read(STDIN_FILENO, &c, 1) == 1) {
+                	if  (c=='p') {
+				paused=!paused;
+                	}
+            	}
+		
+		while (paused==true){
+			usleep(500000);//0.5seconds
+			if ( read(STDIN_FILENO, &c, 1) == 1) {
+               		 	if  (c=='p') {
+					paused=!paused;
+                		}
+            		}
 		}
 		if (paused==false){
 			line_counter++;
@@ -338,7 +374,8 @@ int main(int argc, char* argv[]) {
 			}	
 			else{
 				//normal trajectory following
-				gotoNewPosition(referenceData, bufferedData, resample_ratio, hubo, resultFile);
+				//printf("line is %d \n", line_counter);
+				gotoNewPosition(referenceData, bufferedData, resample_ratio, hubo, resultFile, line_counter);
 				bufferedData=referenceData;
 			}
 		}
@@ -392,4 +429,69 @@ int main(int argc, char* argv[]) {
         &r->ref[LF3],	 7
         &r->ref[LF4],	 8
         &r->ref[LF5]	 9
-*/ 
+*/
+
+// KEyboard Input
+
+static int
+tty_unbuffered(int fd)      /* put terminal into a raw mode */
+{
+    struct termios  buf;
+
+    if (tcgetattr(fd, &buf) < 0)
+        return(-1);
+
+    save_termios = buf; /* structure copy */
+
+    /* echo off, canonical mode off */
+    buf.c_lflag &= ~(ECHO | ICANON);
+
+    /* 1 byte at a time, no timer */
+    buf.c_cc[VMIN] = 1;
+    buf.c_cc[VTIME] = 0;
+    if (tcsetattr(fd, TCSAFLUSH, &buf) < 0)
+        return(-1);
+
+    ttysavefd = fd;
+    return(0);
+}
+
+static int
+tty_reset(int fd)       /* restore terminal's mode */
+{
+    if (tcsetattr(fd, TCSAFLUSH, &save_termios) < 0)
+        return(-1);
+    return(0);
+}
+
+static void
+tty_atexit(void)        /* can be set up by atexit(tty_atexit) */
+{
+    if (ttysavefd >= 0)
+        tty_reset(ttysavefd);
+}
+
+static void
+tweak_init()
+{
+   /* make stdin unbuffered */
+    if (tty_unbuffered(STDIN_FILENO) < 0) {
+        std::cout << "Set tty unbuffered error" << std::endl;
+        exit(1);
+    }
+
+    atexit(tty_atexit);
+
+    /* nonblock I/O */
+    int flags;
+    if ( (flags = fcntl(STDIN_FILENO, F_GETFL, 0)) == 1) {
+        perror("fcntl get flag error");
+        exit(1);
+    }
+    if (fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("fcntl set flag error");
+        exit(1);
+    }
+}
+
+ 
