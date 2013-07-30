@@ -19,7 +19,7 @@ using namespace std;
 double* getArf(char* s);
 void printDoubleArray (double array[]);
 void gotoFirstPosition(double referenceData[], Hubo_Control &hubo);
-void gotoNewPosition(double referenceData[], double bufferedData[], int resample_ratio, Hubo_Control &hubo, FILE * resultFile, int line_counter);
+void gotoNewPosition(double referenceData[], double bufferedData[], int resample_ratio, Hubo_Control &hubo, FILE * resultFile, int line_counter, int compliance_mode);
 double* interpolate_linear (double referenceData[], double bufferedData[], double multiplier);
 bool checkTrajectory (double nextPosition[], double currentPosition[], int line_counter);
 int* contactArray (Hubo_Control &hubo);
@@ -179,7 +179,7 @@ void gotoFirstPosition(double referenceData[], Hubo_Control &hubo){
     }
 }
 
-void gotoNewPosition(double referenceData[], double bufferedData[], int resample_ratio, Hubo_Control &hubo, FILE * resultFile, int line_counter){
+void gotoNewPosition(double referenceData[], double bufferedData[], int resample_ratio, Hubo_Control &hubo, FILE * resultFile, int line_counter, int compliance_mode){
     ArmVector  left_arm_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
     ArmVector  right_arm_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
     ArmVector  left_leg_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
@@ -244,7 +244,12 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
 	    hubo.update(true);
 
     	for (int joint=0; joint<number_of_joints; joint++){
-		hubo.setJointCompliance(joint_array[joint], true);
+		if (compliance_mode==0){
+			hubo.setJointCompliance(joint_array[joint], false);
+		}
+		else{
+			hubo.setJointCompliance(joint_array[joint], true);
+		}
  		hubo.passJointAngle(joint_array[joint], interpolatedData[joint]);
 		fprintf(resultFile,"%f ",interpolatedData[joint]);
 	}
@@ -299,12 +304,12 @@ int main(int argc, char* argv[]) {
 	int input_file_frequency=25;
 	int resample_ratio=frequency/input_file_frequency;
 	int line_counter=0;
-
+	int compliance_mode=0;
 	if (argc>1){
 	//	filename=argv[0];
 		printf("file is  %s \n",argv[1]);
 	}
-	if (argc>2){
+	if (argc>1){
 	//	input_file_frequency=atoi(argv[1]);
 		filename=argv[1];
 		printf("file is  %s \n",argv[1]);
@@ -313,6 +318,11 @@ int main(int argc, char* argv[]) {
 		input_file_frequency=atoi(argv[2]);
 		printf(" input freq is  %d  \n",atoi(argv[2])); 
 	}
+	if (argc>3){
+		compliance_mode=atoi(argv[3]);
+		printf("compliance mode is %d  \n", compliance_mode);
+	}	
+
 	if (input_file_frequency <10){
 		printf("too low input frequncy");
 		return 0;
@@ -375,7 +385,7 @@ int main(int argc, char* argv[]) {
 			else{
 				//normal trajectory following
 				//printf("line is %d \n", line_counter);
-				gotoNewPosition(referenceData, bufferedData, resample_ratio, hubo, resultFile, line_counter);
+				gotoNewPosition(referenceData, bufferedData, resample_ratio, hubo, resultFile, line_counter, compliance_mode);
 				bufferedData=referenceData;
 			}
 		}
