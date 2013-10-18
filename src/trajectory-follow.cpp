@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
-
+#include <DrcHuboKin.h>
 
 // Note that "std::vector" is a dynamic array class in C++ (not available in C)
 // This means you can use std::vector to make a variable-sized array of ArmVector
@@ -184,7 +184,6 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
     ArmVector  right_arm_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
     ArmVector  left_leg_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
     ArmVector  right_leg_angles; // This declares "angles" as a dynamic array of ArmVectors with a starting array length of 5 
-
     double* interpolatedData= new double[number_of_joints];
 
     int* joint_array = new int[number_of_joints];
@@ -246,12 +245,40 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
     	for (int joint=0; joint<number_of_joints; joint++){
 		if (compliance_mode==0){
 			hubo.setJointCompliance(joint_array[joint], false);
+ 			hubo.setJointAngle(joint_array[joint], interpolatedData[joint]);
 		}
 		else{
-			hubo.setJointCompliance(joint_array[joint], true);
-		}
- 		hubo.passJointAngle(joint_array[joint], interpolatedData[joint]);
-		fprintf(resultFile,"%f ",interpolatedData[joint]);
+			//hubo.setJointCompliance(joint_array[joint], true);
+
+	   		hubo.setArmAntiFriction(LEFT, true);
+	    		hubo.setArmAntiFriction(RIGHT, true);
+	    		hubo.setArmCompliance(LEFT, true); // These will turn on compliance with the default gains of hubo-ach
+	    		hubo.setArmCompliance(RIGHT, true);
+	    		//DrcHuboKin kin;
+	    		//kin.updateHubo(hubo);
+
+	    		ArmVector torques; // Vector to hold expected torques due to gravity
+	    		double time, dt=0;
+	    		time = hubo.getTime();
+	    		double qlast[HUBO_JOINT_COUNT]; // Array of the previous reference commands for all the joints (needed to calculate velocity)
+	    		for(int i=0; i<HUBO_JOINT_COUNT; i++){
+	        		qlast[i] = hubo.getJointAngle(i);
+			}
+   
+	    		hubo.update();
+ 	    		//kin.updateHubo(hubo);
+ 	    		dt = hubo.getTime() - time;
+ 	    		time = hubo.getTime();
+    
+ 	    		for( int side=0; side<2; side++){
+ 	        	//	kin.armTorques(side, torques);
+ 	        		hubo.setArmTorques(side, torques);
+			}
+
+			hubo.setJointTraj(joint_array[joint], interpolatedData[joint], (interpolatedData[joint]-qlast[joint])/dt);
+ 	    }
+    
+	    fprintf(resultFile,"%f ",interpolatedData[joint]);
 	}
 	fprintf(resultFile," \n"); 
 	fflush(resultFile);
