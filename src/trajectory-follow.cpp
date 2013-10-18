@@ -1,4 +1,3 @@
-#include <Hubo_Control.h>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -10,6 +9,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <DrcHuboKin.h>
+#include <Hubo_Control.h>
 
 // Note that "std::vector" is a dynamic array class in C++ (not available in C)
 // This means you can use std::vector to make a variable-sized array of ArmVector
@@ -254,8 +254,8 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
 	    		hubo.setArmAntiFriction(RIGHT, true);
 	    		hubo.setArmCompliance(LEFT, true); // These will turn on compliance with the default gains of hubo-ach
 	    		hubo.setArmCompliance(RIGHT, true);
-	    		//DrcHuboKin kin;
-	    		//kin.updateHubo(hubo);
+	    		DrcHuboKin kin;
+	    		kin.updateHubo(hubo);
 
 	    		ArmVector torques; // Vector to hold expected torques due to gravity
 	    		double time, dt=0;
@@ -266,12 +266,12 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
 			}
    
 	    		hubo.update();
- 	    		//kin.updateHubo(hubo);
+ 	    		kin.updateHubo(hubo);
  	    		dt = hubo.getTime() - time;
  	    		time = hubo.getTime();
     
  	    		for( int side=0; side<2; side++){
- 	        	//	kin.armTorques(side, torques);
+ 	        		kin.armTorques(side, torques);
  	        		hubo.setArmTorques(side, torques);
 			}
 
