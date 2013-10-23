@@ -6,4 +6,5 @@ link_libraries(-lm -lc -lhuboctrl -ldaemonizer -lach -lrt -lhuboparams -ldrchubo
 add_executable(ctrl-sample "src/ctrl-sample.cpp")
 add_executable(ctrl-arm-sample "src/ctrl-arm-sample.cpp")
 add_executable(ctrl-trajectory-sample "src/ctrl-trajectory-sample.cpp")
+add_executable(trajectory-follow-gravity "src/trajectory-follow-gravity.cpp")
 add_executable(trajectory-follow "src/trajectory-follow.cpp")

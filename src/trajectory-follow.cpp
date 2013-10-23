@@ -254,10 +254,10 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
 	    		hubo.setArmAntiFriction(RIGHT, true);
 	    		hubo.setArmCompliance(LEFT, true); // These will turn on compliance with the default gains of hubo-ach
 	    		hubo.setArmCompliance(RIGHT, true);
-	    		DrcHuboKin kin;
-	    		kin.updateHubo(hubo);
+	    		//DrcHuboKin kin;
+	    		//kin.updateHubo(hubo);
 
-	    		ArmVector torques; // Vector to hold expected torques due to gravity
+	    		//ArmVector torques; // Vector to hold expected torques due to gravity
 	    		double time, dt=0;
 	    		time = hubo.getTime();
 	    		double qlast[HUBO_JOINT_COUNT]; // Array of the previous reference commands for all the joints (needed to calculate velocity)
@@ -266,14 +266,14 @@ void gotoNewPosition(double referenceData[], double bufferedData[], int resample
 			}
    
 	    		hubo.update();
- 	    		kin.updateHubo(hubo);
+ 	    		//kin.updateHubo(hubo);
  	    		dt = hubo.getTime() - time;
  	    		time = hubo.getTime();
     
- 	    		for( int side=0; side<2; side++){
- 	        		kin.armTorques(side, torques);
- 	        		hubo.setArmTorques(side, torques);
-			}
+ 	    		//for( int side=0; side<2; side++){
+ 	        	//	kin.armTorques(side, torques);
+ 	        	//	hubo.setArmTorques(side, torques);
+			//}
 
 			hubo.setJointTraj(joint_array[joint], interpolatedData[joint], (interpolatedData[joint]-qlast[joint])/dt);
  	    }
